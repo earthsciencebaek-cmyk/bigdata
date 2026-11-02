@@ -30,15 +30,19 @@ input:focus{outline:none;background:#fff;box-shadow:4px 4px 0 #FFD166}
 .btn:hover{transform:translate(2px,2px);box-shadow:4px 4px 0 #000}
 .btn:active{transform:translate(6px,6px);box-shadow:none}
 .btn:disabled{background:#ccc;color:#666;cursor:not-allowed}
-.btn.sub{background:#fff;color:#000;font-size:15px;padding:10px 14px;margin-right:10px}
+.btn.sub{background:#fff;color:#000;font-size:15px;padding:10px 14px}
 .charts{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
-.chart-box h3{text-align:center;margin:0 0 10px;border-bottom:2px dashed #000;padding-bottom:5px;font-size:16px}
-.cv{position:relative;height:280px}
+.charts .chart-box{margin-bottom:0}
+.chart-box h3{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;border-bottom:2px dashed #000;padding-bottom:6px;font-size:16px}
+.del{padding:4px 10px;font-size:13px;font-weight:900;background:#EF476F;color:#fff;border:3px solid #000;border-radius:8px;box-shadow:2px 2px 0 #000;cursor:pointer}
+.del:active{transform:translate(2px,2px);box-shadow:none}
+.cv{position:relative;height:260px}
 .tw{max-height:360px;overflow:auto;border:3px solid #000;border-radius:8px}
 table{width:100%;border-collapse:collapse;text-align:center}
 th,td{border:1px solid #000;padding:5px;font-weight:bold;font-size:13px}
 th{background:#FFD166;position:sticky;top:0}
 .tilt-item{margin:4px 0;font-weight:bold}
+.gap{height:22px}
 @media(max-width:900px){body{flex-direction:column}.sidebar{width:100%;border-right:none;border-bottom:5px solid #000}.nav{display:grid;grid-template-columns:1fr 1fr}.charts{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr)}#title{font-size:20px}}
 </style>
 </head>
@@ -49,15 +53,18 @@ th{background:#FFD166;position:sticky;top:0}
   <div class="notice" id="preview" style="display:none">⚠️ 미리보기 모드: 저장되지 않습니다. 파일 위쪽 WEB_APP_URL에 웹 앱 주소를 넣어 주세요.</div>
 
   <div id="formView" style="display:none">
+    <div class="notice">📈 우리 모둠이 저장한 데이터가 아래 그래프에 나타나요.</div>
+    <div id="groupSet"></div>
+    <div class="gap"></div>
     <div id="formBody"></div>
     <button class="btn" id="saveBtn">🚀 결과 저장하기</button>
-    <button class="btn sub" id="clearBtn" style="margin:0 0 0 14px">🗑️ 이 모둠 데이터 지우기</button>
+    <button class="btn sub" id="clearBtn" style="margin-left:14px">🗑️ 이 모둠 데이터 모두 지우기</button>
   </div>
 
   <div id="dashView" style="display:none">
     <div class="notice" id="stats"></div>
-    <div class="charts" id="charts"></div>
-    <div class="chart-box"><h3>📐 경사계: 모둠별 측정 위치</h3><div id="tilt"></div></div>
+    <div id="dashSet"></div>
+    <div class="gap"></div>
     <div class="chart-box">
       <h3>📋 합친 데이터 표</h3>
       <button class="btn sub" id="csvBtn">⬇️ CSV로 저장</button>
@@ -68,7 +75,7 @@ th{background:#FFD166;position:sticky;top:0}
 
 <script>
 // ★ Apps Script 웹 앱 URL을 여기에 붙여넣으세요 (비워두면 미리보기 모드) ★
-const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxv9J11bOwkO2FjmdQxsWanrrB4DyaKTRSYXpX5iaAHzybYI61Ly4jdERdPH92hycE/exec';
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbz98VhtyODaEWyKFCeBSTd8oWNwnv-edY6druB3j1k7RX978gfLwzajB0aVBc55EBU/exec';
 
 const GROUPS = [1,2,3,4,5,6];
 const TIMES = [0,10,20,30,40,50,60,70,80,90];
@@ -80,26 +87,75 @@ const SERIES = [
 ];
 const ORDER = ['소음','조도','기압','가속도','경사'];
 const COLORS = ['#4285F4','#EA4335','#FBBC04','#34A853','#8E44AD','#FF7F50'];
+Chart.defaults.font.weight = 'bold'; Chart.defaults.color = '#000';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let rawData = [], view = 'dash', curGroup = null, charts = null;
+let rawData = [], view = 'dash', curGroup = null, dash = null, mine = null;
+let pending = 0, seq = 0, queue = Promise.resolve();
 
 const rowsOf = (g, item) => rawData.filter(r => String(r['모둠']) === String(g) && r['항목'] === item);
 const val = (g, item, key) => { const r = rowsOf(g, item).find(r => String(r['구분']) === key); return r ? r['값'] : ''; };
 const num = v => (v === '' || v == null || isNaN(Number(v))) ? null : Number(v);
 
-/* ---------- 서버 통신 ---------- */
-async function load() {
-  if (!WEB_APP_URL) return;
-  try { rawData = await (await fetch(WEB_APP_URL)).json(); } catch (e) { console.error('불러오기 오류', e); }
+/* ---------- 서버 통신: 화면에 먼저 반영하고, 서버 요청은 순서대로 처리 ---------- */
+function applyLocal(p) {
+  if (p.action === 'delete') {
+    rawData = rawData.filter(r => !((p.group == null || String(r['모둠']) === String(p.group)) && (p.item == null || r['항목'] === p.item)));
+  } else {
+    rawData = rawData.filter(r => String(r['모둠']) !== String(p.group));
+    p.rows.forEach(x => rawData.push({'모둠':p.group, '항목':x.item, '구분':x.key, '값':x.value}));
+  }
 }
-async function send(payload) {
-  rawData = rawData.filter(r => String(r['모둠']) !== String(payload.group));
-  if (payload.action !== 'delete') payload.rows.forEach(x => rawData.push({'모둠':payload.group,'항목':x.item,'구분':x.key,'값':x.value}));
-  if (!WEB_APP_URL) return;
-  await fetch(WEB_APP_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)});
-  setTimeout(refresh, 1000);
+function send(p) {
+  applyLocal(p); seq++;
+  if (!WEB_APP_URL) return Promise.resolve(true);
+  pending++;
+  const job = queue.then(() => fetch(WEB_APP_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(p)}))
+    .then(r => r.ok, () => false);
+  queue = job;
+  return job.then(ok => { pending--; if (!pending) refresh(); return ok; });
+}
+async function load() {
+  if (!WEB_APP_URL || pending) return;
+  const my = seq;
+  try {
+    const d = await (await fetch(WEB_APP_URL)).json();
+    if (pending || my !== seq) return;   // 요청 중에 도착한 옛 데이터는 버림
+    rawData = d;
+  } catch (e) { console.error('불러오기 오류', e); }
+}
+async function refresh() { await load(); if (!pending) renderViews(); }
+function renderViews() { if (view === 'dash') updateDash(); else if (mine) fill(mine); }
+
+/* ---------- 그래프 세트 (전체용 / 모둠용 공통) ---------- */
+function buildSet(host, p, groups, scope) {
+  const delBtn = item => `<button class="del" data-item="${item}" data-scope="${scope}">🗑️ 지우기</button>`;
+  const items = SERIES.map(s => [s.k, `${s.icon} ${s.k} (${s.u})`]).concat([['가속도', '🏃 가속도 크기']]);
+  host.innerHTML = `<div class="charts">${items.map(([k, t]) =>
+      `<div class="chart-box"><h3>${t}${delBtn(k)}</h3><div class="cv"><canvas id="${p}-${k}"></canvas></div></div>`).join('')}</div>
+    <div class="gap"></div>
+    <div class="chart-box"><h3>📐 경사계: 측정 위치${delBtn('경사')}</h3><div id="${p}-tilt"></div></div>`;
+  const ds = () => groups.map(g => ({label:g+'모둠', data:[], borderColor:'#000', backgroundColor:COLORS[g-1], borderWidth:3, pointBorderColor:'#000', pointRadius:4, spanGaps:true}));
+  const opts = (xt, yt) => ({responsive:true, maintainAspectRatio:false, scales:{x:{title:{display:true,text:xt}}, y:{title:{display:true,text:yt}}}});
+  const charts = {};
+  SERIES.forEach(s => charts[s.k] = new Chart($(`#${p}-${s.k}`), {type:'line', data:{labels:TIMES.map(t => t+'초'), datasets:ds()}, options:opts('시간', s.u)}));
+  charts['가속도'] = new Chart($(`#${p}-가속도`), {type:'bar', data:{labels:MOVES, datasets:ds()}, options:opts('상황', '가속도 크기')});
+  return {p, groups, charts};
+}
+function destroySet(s) { if (s) Object.values(s.charts).forEach(c => c.destroy()); }
+function fill(set) {
+  const {p, groups, charts} = set;
+  SERIES.forEach(s => {
+    groups.forEach((g, i) => charts[s.k].data.datasets[i].data = TIMES.map(t => num(val(g, s.k, t+'초'))));
+    charts[s.k].update('none');
+  });
+  groups.forEach((g, i) => charts['가속도'].data.datasets[i].data = MOVES.map(m => num(val(g, '가속도', m))));
+  charts['가속도'].update('none');
+  $(`#${p}-tilt`).innerHTML = groups.map(g => {
+    const t = rowsOf(g, '경사');
+    return `<div class="tilt-item">${g}모둠: ${t.length ? t.map(r => `${esc(r['구분'])} (${r['값'] === '' ? '-' : esc(r['값'])}°)`).join(' / ') : '입력 없음'}</div>`;
+  }).join('');
 }
 
 /* ---------- 화면 전환 ---------- */
@@ -114,7 +170,14 @@ function show(v, g) {
   $('#formView').style.display = v === 'form' ? 'block' : 'none';
   $('#dashView').style.display = v === 'dash' ? 'block' : 'none';
   $('#title').textContent = v === 'form' ? `✏️ ${g}모둠 측정 데이터 입력` : '🌍 전체 모둠 데이터 보기';
-  if (v === 'form') buildForm(g); else { ensureCharts(); updateDash(); }
+  if (v === 'form') {
+    destroySet(mine);
+    mine = buildSet($('#groupSet'), 'm', [Number(g)], 'group'); fill(mine);
+    buildForm(g);
+  } else {
+    if (!dash) dash = buildSet($('#dashSet'), 'd', GROUPS, 'all');
+    updateDash();
+  }
 }
 
 /* ---------- 입력 탭 ---------- */
@@ -140,42 +203,37 @@ $('#saveBtn').onclick = async () => {
   const rows = collect();
   if (!rows.length) { alert('입력된 값이 없습니다.'); return; }
   const b = $('#saveBtn'), t = b.textContent; b.textContent = '저장 중... ⏳'; b.disabled = true;
-  try { await send({group:curGroup, rows}); alert(`${curGroup}모둠 데이터가 저장되었습니다! 🎉`); }
-  catch (e) { console.error(e); alert('오류가 발생했습니다. 잠시 후 다시 시도해주세요.'); }
+  const job = send({group:Number(curGroup), rows});
+  fill(mine);                                  // 그래프는 바로 갱신
+  const ok = await job;
+  alert(ok ? `${curGroup}모둠 데이터가 저장되었습니다! 🎉` : '서버 저장에 실패했습니다. 잠시 후 다시 저장해 주세요.');
   b.textContent = t; b.disabled = false;
 };
-$('#clearBtn').onclick = async () => {
+$('#clearBtn').onclick = () => {
   if (!confirm(`${curGroup}모둠의 데이터를 모두 지울까요?`)) return;
-  try { await send({action:'delete', group:curGroup}); buildForm(curGroup); } catch (e) { alert('삭제 중 오류가 발생했습니다.'); }
+  send({action:'delete', group:Number(curGroup)}).then(ok => { if (!ok) alert('서버 삭제에 실패했습니다. 새로고침 후 확인해 주세요.'); });
+  fill(mine); buildForm(curGroup);
 };
 
-/* ---------- 전체 탭 ---------- */
-function ensureCharts() {
-  if (charts) return;
-  charts = {};
-  Chart.defaults.font.weight = 'bold'; Chart.defaults.color = '#000';
-  const box = (id, title) => `<div class="chart-box"><h3>${title}</h3><div class="cv"><canvas id="${id}"></canvas></div></div>`;
-  $('#charts').innerHTML = SERIES.map(s => box('c-'+s.k, `${s.icon} ${s.k} (${s.u})`)).join('') + box('c-가속도', '🏃 가속도 크기');
-  const ds = line => GROUPS.map((g, i) => ({label:g+'모둠', data:[], borderColor:'#000', backgroundColor:COLORS[i], borderWidth:line ? 3 : 2, pointBorderColor:'#000', pointRadius:4, spanGaps:true}));
-  const opts = (xt, yt) => ({responsive:true, maintainAspectRatio:false, scales:{x:{title:{display:true,text:xt}}, y:{title:{display:!!yt,text:yt}}}});
-  SERIES.forEach(s => charts[s.k] = new Chart($('#c-'+s.k), {type:'line', data:{labels:TIMES.map(t => t+'초'), datasets:ds(true)}, options:opts('시간', s.u)}));
-  charts['가속도'] = new Chart($('#c-가속도'), {type:'bar', data:{labels:MOVES, datasets:ds(false)}, options:opts('상황', '가속도 크기')});
-}
-function updateDash() {
-  if (!charts) return;
-  SERIES.forEach(s => { GROUPS.forEach((g, i) => charts[s.k].data.datasets[i].data = TIMES.map(t => num(val(g, s.k, t+'초')))); charts[s.k].update('none'); });
-  GROUPS.forEach((g, i) => charts['가속도'].data.datasets[i].data = MOVES.map(m => num(val(g, '가속도', m))));
-  charts['가속도'].update('none');
+/* ---------- 항목별 지우기 버튼 (전체 탭: 모든 모둠 / 모둠 탭: 해당 모둠) ---------- */
+document.addEventListener('click', e => {
+  const b = e.target.closest('.del'); if (!b) return;
+  const item = b.dataset.item, all = b.dataset.scope === 'all';
+  if (!confirm(all ? `모든 모둠의 ${item} 데이터를 지울까요?` : `${curGroup}모둠의 ${item} 데이터를 지울까요?`)) return;
+  send({action:'delete', group: all ? null : Number(curGroup), item}).then(ok => { if (!ok) alert('서버 삭제에 실패했습니다. 새로고침 후 확인해 주세요.'); });
+  if (all) { updateDash(); return; }
+  fill(mine);
+  document.querySelectorAll(`#formBody input[data-item="${item}"]`).forEach(i => i.value = '');
+  if (item === '경사') [0,1,2].forEach(n => { $('#loc'+n).value = ''; $('#ang'+n).value = ''; });
+});
 
+/* ---------- 전체 탭 ---------- */
+function updateDash() {
+  if (!dash) return;
+  fill(dash);
   const cnt = rawData.filter(r => num(r['값']) !== null).length;
   const gs = new Set(rawData.map(r => String(r['모둠']))).size;
   $('#stats').textContent = `📦 우리 반 전체 데이터: 값 ${cnt}개 (${gs}/6모둠 입력)`;
-
-  $('#tilt').innerHTML = GROUPS.map(g => {
-    const t = rowsOf(g, '경사');
-    return `<div class="tilt-item">${g}모둠: ${t.length ? t.map(r => `${esc(r['구분'])} (${r['값'] === '' ? '-' : esc(r['값'])}°)`).join(' / ') : '입력 없음'}</div>`;
-  }).join('');
-
   const rows = rawData.slice().sort((a, b) => (a['모둠'] - b['모둠']) || (ORDER.indexOf(a['항목']) - ORDER.indexOf(b['항목'])));
   $('#tbody').innerHTML = rows.length
     ? rows.map(r => `<tr><td>${esc(r['모둠'])}</td><td>${esc(r['항목'])}</td><td>${esc(r['구분'])}</td><td>${esc(r['값'])}</td></tr>`).join('')
@@ -190,7 +248,6 @@ $('#csvBtn').onclick = () => {
 };
 
 /* ---------- 시작 ---------- */
-async function refresh() { await load(); if (view === 'dash') updateDash(); }
 if (!WEB_APP_URL) $('#preview').style.display = 'block';
 buildNav(); show('dash'); refresh();
 setInterval(refresh, 5000);
