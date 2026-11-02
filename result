@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1차시: 생활 주변 데이터 측정</title>
+    <style>
+        body { 
+            font-family: 'Arial', sans-serif; 
+            background-color: #DFE5F2; 
+            color: #000;
+            padding: 20px; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+        }
+        .form-container {
+            background-color: #ffffff;
+            width: 100%;
+            max-width: 500px;
+            padding: 30px;
+            border: 5px solid #000;
+            border-radius: 0px;
+            box-shadow: 8px 8px 0px #000;
+        }
+        h2 { 
+            text-align: center; 
+            font-size: 24px;
+            font-weight: 900;
+            background-color: #FFDE00; 
+            padding: 15px;
+            border: 4px solid #000;
+            box-shadow: 4px 4px 0px #000;
+            margin-top: 0; margin-bottom: 25px;
+        }
+        .section-title {
+            background-color: #06D6A0;
+            display: inline-block;
+            padding: 5px 10px;
+            font-weight: bold;
+            border: 3px solid #000;
+            margin-top: 20px; margin-bottom: 10px;
+        }
+        label { display: block; font-weight: 900; font-size: 14px; margin-bottom: 5px; margin-top: 10px; }
+        .input-group { display: flex; gap: 10px; }
+        input, select { 
+            width: 100%; padding: 12px; font-size: 15px; font-weight: bold;
+            border: 3px solid #000; box-sizing: border-box; 
+            background-color: #fff; transition: 0.1s;
+        }
+        input:focus, select:focus { outline: none; background-color: #E8F0FF; box-shadow: 3px 3px 0px #000; }
+        button { 
+            width: 100%; padding: 18px; margin-top: 30px; 
+            background-color: #EF476F; color: #fff; 
+            border: 4px solid #000; font-size: 20px; font-weight: 900;
+            cursor: pointer; box-shadow: 6px 6px 0px #000;
+        }
+        button:active { transform: translate(6px, 6px); box-shadow: 0px 0px 0px #000; }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <h2>📊 데이터 수집 기록장</h2>
+        <form id="dataForm">
+            <label>👥 모둠 선택</label>
+            <select id="group" required>
+                <option value="1모둠">1모둠</option><option value="2모둠">2모둠</option>
+                <option value="3모둠">3모둠</option><option value="4모둠">4모둠</option>
+                <option value="5모둠">5모둠</option><option value="6모둠">6모둠</option>
+            </select>
+
+            <div class="section-title">🏃 중력가속도 (단위: m/s²)</div>
+            <label>정지 상태</label><input type="number" id="accel_rest" step="any" required>
+            <label>걷기 상태</label><input type="number" id="accel_walk" step="any" required>
+            <label>점프 상태</label><input type="number" id="accel_jump" step="any" required>
+
+            <div class="section-title">📐 경사계 (단위: 도 °)</div>
+            <div class="input-group">
+                <input type="text" id="incl_name1" placeholder="위치1 이름" required>
+                <input type="number" id="incl_val1" placeholder="각도" step="any" required>
+            </div>
+            <div class="input-group" style="margin-top:10px;">
+                <input type="text" id="incl_name2" placeholder="위치2 이름" required>
+                <input type="number" id="incl_val2" placeholder="각도" step="any" required>
+            </div>
+            <div class="input-group" style="margin-top:10px;">
+                <input type="text" id="incl_name3" placeholder="위치3 이름" required>
+                <input type="number" id="incl_val3" placeholder="각도" step="any" required>
+            </div>
+
+            <div class="section-title">🌍 환경 변인</div>
+            <label>🔊 소음 (dB)</label><input type="number" id="noise" step="any" required>
+            <label>💡 조도 (lux)</label><input type="number" id="illuminance" step="any" required>
+            <label>🌡️ 기압 (Pa)</label><input type="number" id="pressure" step="any" required>
+
+            <button type="submit">🚀 데이터 전송하기</button>
+        </form>
+    </div>
+
+    <script>
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzxGhZtVIkmXCGwqB-_ATMm2YIrbPWRa39DM11Mg-aIjaf3NHpMUv6W8IBMz63Ml4c/exec';
+
+        document.getElementById('dataForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const submitBtn = document.querySelector('button');
+            submitBtn.innerHTML = '전송 중... ⏳'; submitBtn.disabled = true;
+            
+            const data = {
+                group: document.getElementById('group').value,
+                accel_rest: document.getElementById('accel_rest').value,
+                accel_walk: document.getElementById('accel_walk').value,
+                accel_jump: document.getElementById('accel_jump').value,
+                incl_name1: document.getElementById('incl_name1').value, incl_val1: document.getElementById('incl_val1').value,
+                incl_name2: document.getElementById('incl_name2').value, incl_val2: document.getElementById('incl_val2').value,
+                incl_name3: document.getElementById('incl_name3').value, incl_val3: document.getElementById('incl_val3').value,
+                noise: document.getElementById('noise').value,
+                illuminance: document.getElementById('illuminance').value,
+                pressure: document.getElementById('pressure').value
+            };
+
+            fetch(WEB_APP_URL, { method: 'POST', body: JSON.stringify(data) })
+            .then(() => {
+                alert('전송 완료!');
+                document.getElementById('dataForm').reset();
+            })
+            .catch(() => alert('오류 발생'))
+            .finally(() => { submitBtn.innerHTML = '🚀 데이터 전송하기'; submitBtn.disabled = false; });
+        });
+    </script>
+</body>
+</html>
