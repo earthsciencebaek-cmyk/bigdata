@@ -13,7 +13,7 @@ body{font-family:'Arial',sans-serif;display:flex;margin:0;min-height:100vh;backg
 .cat-btn{padding:12px;background:#fff;border:4px solid #000;border-radius:8px;box-shadow:4px 4px 0 #000;cursor:pointer;text-align:left;font-size:16px;font-weight:bold;transition:all .15s}
 .cat-btn:hover{transform:translate(2px,2px);box-shadow:2px 2px 0 #000;background:#f0f0f0}
 .cat-btn.active{background:#FFD166;transform:translate(4px,4px);box-shadow:none}
-.main{flex:1;padding:20px;min-width:0}
+.main{flex:1;padding:20px;min-width:0;box-sizing:border-box}
 #title{font-size:26px;font-weight:900;background:#06D6A0;padding:10px 20px;border:5px solid #000;border-radius:12px;box-shadow:6px 6px 0 #000;margin:0 0 20px;text-align:center;word-break:keep-all}
 .notice{background:#FFD166;border:4px solid #000;border-radius:10px;padding:10px 14px;font-weight:bold;margin-bottom:16px}
 .sec,.chart-box{background:#fff;border:4px solid #000;border-radius:12px;box-shadow:6px 6px 0 #000;padding:15px;margin-bottom:22px}
@@ -22,8 +22,8 @@ body{font-family:'Arial',sans-serif;display:flex;margin:0;min-height:100vh;backg
 label{display:block;font-weight:900;font-size:13px;margin-bottom:4px}
 input{width:100%;padding:10px;font-size:16px;font-weight:bold;border:3px solid #000;border-radius:8px;box-sizing:border-box;background:#f9f9f9}
 input:focus{outline:none;background:#fff;box-shadow:4px 4px 0 #FFD166}
-.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .loc{display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px}
 .hint{font-size:13px;margin:0 0 10px}
 .btn{padding:14px 18px;border:4px solid #000;border-radius:10px;font-size:18px;font-weight:900;cursor:pointer;box-shadow:6px 6px 0 #000;color:#fff;background:#EF476F;transition:all .15s}
@@ -31,19 +31,23 @@ input:focus{outline:none;background:#fff;box-shadow:4px 4px 0 #FFD166}
 .btn:active{transform:translate(6px,6px);box-shadow:none}
 .btn:disabled{background:#ccc;color:#666;cursor:not-allowed}
 .btn.sub{background:#fff;color:#000;font-size:15px;padding:10px 14px}
-.charts{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.chart-box{min-width:0}
 .charts .chart-box{margin-bottom:0}
 .chart-box h3{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;border-bottom:2px dashed #000;padding-bottom:6px;font-size:16px}
 .del{padding:4px 10px;font-size:13px;font-weight:900;background:#EF476F;color:#fff;border:3px solid #000;border-radius:8px;box-shadow:2px 2px 0 #000;cursor:pointer}
 .del:active{transform:translate(2px,2px);box-shadow:none}
-.cv{position:relative;height:260px}
+.cv{position:relative;width:100%;height:clamp(150px,calc((100vh - 400px)/2),420px);overflow:hidden}
 .tw{max-height:360px;overflow:auto;border:3px solid #000;border-radius:8px}
 table{width:100%;border-collapse:collapse;text-align:center}
 th,td{border:1px solid #000;padding:5px;font-weight:bold;font-size:13px}
 th{background:#FFD166;position:sticky;top:0}
-.tilt-item{margin:4px 0;font-weight:bold}
+.tilt-item{margin:2px 0;font-weight:bold;font-size:13px}
+.tiltbox{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px 14px}
+.tiltbox.one{grid-template-columns:1fr}
+@media(min-width:901px){.sidebar{width:170px;padding:12px}.sidebar h2{font-size:16px;margin-bottom:12px;padding-bottom:10px}.nav{gap:8px}.cat-btn{padding:8px;font-size:14px;border-width:3px;box-shadow:3px 3px 0 #000}.main{padding:12px}#title{font-size:20px;padding:6px 12px;border-width:4px;margin-bottom:10px;box-shadow:4px 4px 0 #000}.notice{padding:6px 10px;margin-bottom:10px;font-size:14px}.chart-box,.sec{padding:8px 10px;border-width:3px;box-shadow:4px 4px 0 #000}.charts{gap:12px}.chart-box h3{font-size:14px;margin-bottom:6px;padding-bottom:4px}.del{padding:2px 8px;font-size:12px}.gap{height:12px}}
 .gap{height:22px}
-@media(max-width:900px){body{flex-direction:column}.sidebar{width:100%;border-right:none;border-bottom:5px solid #000}.nav{display:grid;grid-template-columns:1fr 1fr}.charts{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr)}#title{font-size:20px}}
+@media(max-width:900px){body{flex-direction:column}.sidebar{width:100%;border-right:none;border-bottom:5px solid #000}.nav{display:grid;grid-template-columns:1fr 1fr}.charts{grid-template-columns:minmax(0,1fr)}.cv{height:260px}.tiltbox{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr)}#title{font-size:20px}}
 </style>
 </head>
 <body>
@@ -87,7 +91,7 @@ const SERIES = [
 ];
 const ORDER = ['소음','조도','기압','가속도','경사'];
 const COLORS = ['#4285F4','#EA4335','#FBBC04','#34A853','#8E44AD','#FF7F50'];
-Chart.defaults.font.weight = 'bold'; Chart.defaults.color = '#000';
+Chart.defaults.font.weight = 'bold'; Chart.defaults.color = '#000'; Chart.defaults.font.size = 11; Chart.defaults.plugins.legend.labels.boxWidth = 14; Chart.defaults.plugins.legend.labels.padding = 8;
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -135,7 +139,7 @@ function buildSet(host, p, groups, scope) {
   host.innerHTML = `<div class="charts">${items.map(([k, t]) =>
       `<div class="chart-box"><h3>${t}${delBtn(k)}</h3><div class="cv"><canvas id="${p}-${k}"></canvas></div></div>`).join('')}</div>
     <div class="gap"></div>
-    <div class="chart-box"><h3>📐 경사계: 측정 위치${delBtn('경사')}</h3><div id="${p}-tilt"></div></div>`;
+    <div class="chart-box"><h3>📐 경사계: 측정 위치${delBtn('경사')}</h3><div id="${p}-tilt" class="tiltbox ${groups.length === 1 ? 'one' : ''}"></div></div>`;
   const ds = () => groups.map(g => ({label:g+'모둠', data:[], borderColor:'#000', backgroundColor:COLORS[g-1], borderWidth:3, pointBorderColor:'#000', pointRadius:4, spanGaps:true}));
   const opts = (xt, yt) => ({responsive:true, maintainAspectRatio:false, scales:{x:{title:{display:true,text:xt}}, y:{title:{display:true,text:yt}}}});
   const charts = {};
