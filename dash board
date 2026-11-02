@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>실시간 데이터 수집 대시보드</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Arial', sans-serif; display: flex; margin: 0; min-height: 100vh; background-color: #E8F0FF; color: #000; }
+        .sidebar { width: 250px; background-color: #fff; padding: 20px; border-right: 5px solid #000; }
+        .sidebar h2 { border-bottom: 4px solid #000; padding-bottom: 10px; font-weight: 900; }
+        .category-btn { display: block; width: 100%; padding: 12px; margin-bottom: 10px; background: #fff; border: 3px solid #000; cursor: pointer; font-weight: bold; box-shadow: 4px 4px 0px #000; }
+        .category-btn.active { background: #FFDE00; transform: translate(4px, 4px); box-shadow: 0px 0px 0px #000; }
+        .main-content { flex: 1; padding: 20px; display: flex; flex-direction: column; }
+        #dashboardTitle { font-size: 28px; background: #118AB2; color:#fff; padding: 15px; border: 5px solid #000; box-shadow: 6px 6px 0px #000; text-align: center; }
+        .grid-container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        .card { background: #fff; padding: 15px; border: 4px solid #000; box-shadow: 6px 6px 0px #000; }
+        .card h3 { margin-top: 0; border-bottom: 2px solid #000; padding-bottom: 5px; }
+        table { width: 100%; border-collapse: collapse; text-align: center; margin-top: 10px; }
+        th, td { border: 2px solid #000; padding: 8px; font-weight: bold; }
+        th { background-color: #FFDE00; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>측정 그룹</h2>
+        <button class="category-btn active" onclick="changeGroup('전체')">🌍 전체 보기</button>
+        <button class="category-btn" onclick="changeGroup('1모둠')">1모둠</button>
+        <button class="category-btn" onclick="changeGroup('2모둠')">2모둠</button>
+        <button class="category-btn" onclick="changeGroup('3모둠')">3모둠</button>
+        <button class="category-btn" onclick="changeGroup('4모둠')">4모둠</button>
+        <button class="category-btn" onclick="changeGroup('5모둠')">5모둠</button>
+        <button class="category-btn" onclick="changeGroup('6모둠')">6모둠</button>
+    </div>
+
+    <div class="main-content">
+        <h1 id="dashboardTitle">전체 모둠 측정 결과</h1>
+        
+        <div class="grid-container">
+            <div class="card">
+                <h3>🏃 가속도 비교 (m/s²)</h3>
+                <canvas id="accelChart"></canvas>
+            </div>
+            <div class="card">
+                <h3>📐 평균 경사도 (°)</h3>
+                <canvas id="inclChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top:20px;">
+            <h3>🌍 환경 변인 세부 데이터</h3>
+            <table>
+                <thead>
+                    <tr><th>모둠</th><th>소음 (dB)</th><th>조도 (lux)</th><th>기압 (Pa)</th></tr>
+                </thead>
+                <tbody id="envTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzxGhZtVIkmXCGwqB-_ATMm2YIrbPWRa39DM11Mg-aIjaf3NHpMUv6W8IBMz63Ml4c/exec';
+        let currentGroup = '전체';
+        let rawData = [];
+        let accelChart, inclChart;
+
+        function initCharts() {
+            const ctx1 = document.getElementById('accelChart').getContext('2d');
+            accelChart = new Chart(ctx1, {
+                type: 'bar',
+                data: { labels: ['정지', '걷기', '점프'], datasets: [{ label: '가속도', backgroundColor: '#EF476F', borderColor: '#000', borderWidth: 2, data: [0,0,0] }] },
+                options: { scales: { y: { beginAtZero: true } } }
+            });
+
+            const ctx2 = document.getElementById('inclChart').getContext('2d');
+            inclChart = new Chart(ctx2, {
+                type: 'bar',
+                data: { labels: ['위치1', '위치2', '위치3'], datasets: [{ label: '경사도(°)', backgroundColor: '#06D6A0', borderColor: '#000', borderWidth: 2, data: [0,0,0] }] },
+                options: { scales: { y: { beginAtZero: true } } }
+            });
+        }
+
+        function changeGroup(group) {
+            currentGroup = group;
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if(btn.innerText.includes(group)) btn.classList.add('active');
+            });
+            document.getElementById('dashboardTitle').innerText = group === '전체' ? '전체 모둠 측정 결과 (평균)' : `${group} 측정 결과`;
+            updateDashboard();
+        }
+
+        function updateDashboard() {
+            let filtered = rawData;
+            if(currentGroup !== '전체') filtered = rawData.filter(d => d['모둠'] === currentGroup);
+
+            if(filtered.length === 0) return;
+
+            // 가속도 평균 계산
+            const a_rest = filtered.reduce((sum, d) => sum + Number(d['가속도(정지)']||0), 0) / filtered.length;
+            const a_walk = filtered.reduce((sum, d) => sum + Number(d['가속도(걷기)']||0), 0) / filtered.length;
+            const a_jump = filtered.reduce((sum, d) => sum + Number(d['가속도(점프)']||0), 0) / filtered.length;
+            accelChart.data.datasets[0].data = [a_rest, a_walk, a_jump];
+            accelChart.update();
+
+            // 경사도 평균 계산
+            const i_val1 = filtered.reduce((sum, d) => sum + Number(d['위치1(각도)']||0), 0) / filtered.length;
+            const i_val2 = filtered.reduce((sum, d) => sum + Number(d['위치2(각도)']||0), 0) / filtered.length;
+            const i_val3 = filtered.reduce((sum, d) => sum + Number(d['위치3(각도)']||0), 0) / filtered.length;
+            inclChart.data.datasets[0].data = [i_val1, i_val2, i_val3];
+            
+            // 경사도 이름 라벨 설정 (단일 모둠일 경우 해당 모둠이 입력한 이름 표시)
+            if(currentGroup !== '전체' && filtered.length > 0) {
+                inclChart.data.labels = [filtered[0]['위치1(이름)'], filtered[0]['위치2(이름)'], filtered[0]['위치3(이름)']];
+            } else {
+                inclChart.data.labels = ['위치1', '위치2', '위치3'];
+            }
+            inclChart.update();
+
+            // 환경 테이블 업데이트
+            const tbody = document.getElementById('envTableBody');
+            tbody.innerHTML = '';
+            filtered.forEach(d => {
+                tbody.innerHTML += `<tr><td>${d['모둠']}</td><td>${d['소음(dB)']}</td><td>${d['조도(lux)']}</td><td>${d['기압(Pa)']}</td></tr>`;
+            });
+        }
+
+        async function fetchData() {
+            try {
+                const res = await fetch(WEB_APP_URL);
+                rawData = await res.json();
+                updateDashboard();
+            } catch(e) { console.error(e); }
+        }
+
+        initCharts();
+        fetchData();
+        setInterval(fetchData, 5000);
+    </script>
+</body>
+</html>
