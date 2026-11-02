@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>탐구 활동 ① 측정 데이터 입력</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+<style>
+body{font-family:'Arial',sans-serif;display:flex;margin:0;min-height:100vh;background:#fdf5e6;color:#000;box-sizing:border-box}
+.sidebar{width:260px;background:#fff;padding:20px;border-right:5px solid #000;flex-shrink:0;box-sizing:border-box}
+.sidebar h2{margin:0 0 20px;font-size:20px;font-weight:900;text-align:center;border-bottom:4px solid #000;padding-bottom:15px}
+.nav{display:flex;flex-direction:column;gap:12px}
+.cat-btn{padding:12px;background:#fff;border:4px solid #000;border-radius:8px;box-shadow:4px 4px 0 #000;cursor:pointer;text-align:left;font-size:16px;font-weight:bold;transition:all .15s}
+.cat-btn:hover{transform:translate(2px,2px);box-shadow:2px 2px 0 #000;background:#f0f0f0}
+.cat-btn.active{background:#FFD166;transform:translate(4px,4px);box-shadow:none}
+.main{flex:1;padding:20px;min-width:0}
+#title{font-size:26px;font-weight:900;background:#06D6A0;padding:10px 20px;border:5px solid #000;border-radius:12px;box-shadow:6px 6px 0 #000;margin:0 0 20px;text-align:center;word-break:keep-all}
+.notice{background:#FFD166;border:4px solid #000;border-radius:10px;padding:10px 14px;font-weight:bold;margin-bottom:16px}
+.sec,.chart-box{background:#fff;border:4px solid #000;border-radius:12px;box-shadow:6px 6px 0 #000;padding:15px;margin-bottom:22px}
+.sec h3{margin:0 0 12px;padding:8px 12px;border:3px solid #000;border-radius:8px;font-size:17px}
+.h-noise{background:#a5d8ff}.h-light{background:#ffe08a}.h-press{background:#b8f2c6}.h-acc{background:#ffb3c1}.h-tilt{background:#d9c2ff}
+label{display:block;font-weight:900;font-size:13px;margin-bottom:4px}
+input{width:100%;padding:10px;font-size:16px;font-weight:bold;border:3px solid #000;border-radius:8px;box-sizing:border-box;background:#f9f9f9}
+input:focus{outline:none;background:#fff;box-shadow:4px 4px 0 #FFD166}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.loc{display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px}
+.hint{font-size:13px;margin:0 0 10px}
+.btn{padding:14px 18px;border:4px solid #000;border-radius:10px;font-size:18px;font-weight:900;cursor:pointer;box-shadow:6px 6px 0 #000;color:#fff;background:#EF476F;transition:all .15s}
+.btn:hover{transform:translate(2px,2px);box-shadow:4px 4px 0 #000}
+.btn:active{transform:translate(6px,6px);box-shadow:none}
+.btn:disabled{background:#ccc;color:#666;cursor:not-allowed}
+.btn.sub{background:#fff;color:#000;font-size:15px;padding:10px 14px;margin-right:10px}
+.charts{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
+.chart-box h3{text-align:center;margin:0 0 10px;border-bottom:2px dashed #000;padding-bottom:5px;font-size:16px}
+.cv{position:relative;height:280px}
+.tw{max-height:360px;overflow:auto;border:3px solid #000;border-radius:8px}
+table{width:100%;border-collapse:collapse;text-align:center}
+th,td{border:1px solid #000;padding:5px;font-weight:bold;font-size:13px}
+th{background:#FFD166;position:sticky;top:0}
+.tilt-item{margin:4px 0;font-weight:bold}
+@media(max-width:900px){body{flex-direction:column}.sidebar{width:100%;border-right:none;border-bottom:5px solid #000}.nav{display:grid;grid-template-columns:1fr 1fr}.charts{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr)}#title{font-size:20px}}
+</style>
+</head>
+<body>
+<div class="sidebar"><h2>모둠 선택</h2><div class="nav" id="nav"></div></div>
+<div class="main">
+  <h1 id="title"></h1>
+  <div class="notice" id="preview" style="display:none">⚠️ 미리보기 모드: 저장되지 않습니다. 파일 위쪽 WEB_APP_URL에 웹 앱 주소를 넣어 주세요.</div>
+
+  <div id="formView" style="display:none">
+    <div id="formBody"></div>
+    <button class="btn" id="saveBtn">🚀 결과 저장하기</button>
+    <button class="btn sub" id="clearBtn" style="margin:0 0 0 14px">🗑️ 이 모둠 데이터 지우기</button>
+  </div>
+
+  <div id="dashView" style="display:none">
+    <div class="notice" id="stats"></div>
+    <div class="charts" id="charts"></div>
+    <div class="chart-box"><h3>📐 경사계: 모둠별 측정 위치</h3><div id="tilt"></div></div>
+    <div class="chart-box">
+      <h3>📋 합친 데이터 표</h3>
+      <button class="btn sub" id="csvBtn">⬇️ CSV로 저장</button>
+      <div class="tw" style="margin-top:10px"><table><thead><tr><th>모둠</th><th>항목</th><th>구분</th><th>값</th></tr></thead><tbody id="tbody"></tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ★ Apps Script 웹 앱 URL을 여기에 붙여넣으세요 (비워두면 미리보기 모드) ★
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxv9J11bOwkO2FjmdQxsWanrrB4DyaKTRSYXpX5iaAHzybYI61Ly4jdERdPH92hycE/exec';
+
+const GROUPS = [1,2,3,4,5,6];
+const TIMES = [0,10,20,30,40,50,60,70,80,90];
+const MOVES = ['정지','걷기','점프'];
+const SERIES = [
+  {k:'소음', u:'dB',  cls:'h-noise', icon:'🔊'},
+  {k:'조도', u:'lux', cls:'h-light', icon:'💡'},
+  {k:'기압', u:'Pa',  cls:'h-press', icon:'🌡️'}
+];
+const ORDER = ['소음','조도','기압','가속도','경사'];
+const COLORS = ['#4285F4','#EA4335','#FBBC04','#34A853','#8E44AD','#FF7F50'];
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let rawData = [], view = 'dash', curGroup = null, charts = null;
+
+const rowsOf = (g, item) => rawData.filter(r => String(r['모둠']) === String(g) && r['항목'] === item);
+const val = (g, item, key) => { const r = rowsOf(g, item).find(r => String(r['구분']) === key); return r ? r['값'] : ''; };
+const num = v => (v === '' || v == null || isNaN(Number(v))) ? null : Number(v);
+
+/* ---------- 서버 통신 ---------- */
+async function load() {
+  if (!WEB_APP_URL) return;
+  try { rawData = await (await fetch(WEB_APP_URL)).json(); } catch (e) { console.error('불러오기 오류', e); }
+}
+async function send(payload) {
+  rawData = rawData.filter(r => String(r['모둠']) !== String(payload.group));
+  if (payload.action !== 'delete') payload.rows.forEach(x => rawData.push({'모둠':payload.group,'항목':x.item,'구분':x.key,'값':x.value}));
+  if (!WEB_APP_URL) return;
+  await fetch(WEB_APP_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(payload)});
+  setTimeout(refresh, 1000);
+}
+
+/* ---------- 화면 전환 ---------- */
+function buildNav() {
+  $('#nav').innerHTML = GROUPS.map(g => `<button class="cat-btn" data-v="form" data-g="${g}">✏️ ${g}모둠 입력</button>`).join('')
+    + `<button class="cat-btn" data-v="dash" style="grid-column:1/-1">🌍 전체 모둠 보기</button>`;
+  document.querySelectorAll('.cat-btn').forEach(b => b.onclick = () => show(b.dataset.v, b.dataset.g));
+}
+function show(v, g) {
+  view = v; curGroup = g || null;
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.dataset.v === v && (v === 'dash' || b.dataset.g === g)));
+  $('#formView').style.display = v === 'form' ? 'block' : 'none';
+  $('#dashView').style.display = v === 'dash' ? 'block' : 'none';
+  $('#title').textContent = v === 'form' ? `✏️ ${g}모둠 측정 데이터 입력` : '🌍 전체 모둠 데이터 보기';
+  if (v === 'form') buildForm(g); else { ensureCharts(); updateDash(); }
+}
+
+/* ---------- 입력 탭 ---------- */
+function buildForm(g) {
+  const sec = (cls, title, body, hint='') => `<div class="sec"><h3 class="${cls}">${title}</h3>${hint ? `<p class="hint">${hint}</p>` : ''}${body}</div>`;
+  const timeGrid = item => `<div class="grid">${TIMES.map(t => `<div><label>${t}초</label><input type="number" step="any" inputmode="decimal" data-item="${item}" data-key="${t}초" value="${esc(val(g,item,t+'초'))}"></div>`).join('')}</div>`;
+  const tilt = rowsOf(g, '경사');
+  let html = SERIES.map(s => sec(s.cls, `${s.icon} ${s.k} (${s.u})`, timeGrid(s.k), '90초 동안 10초마다 측정한 값을 입력하세요.')).join('');
+  html += sec('h-acc', '🏃 가속도 크기 (앱에 표시된 값 그대로, 단위 없음)',
+    `<div class="grid3">${MOVES.map(m => `<div><label>${m}</label><input type="number" step="any" inputmode="decimal" data-item="가속도" data-key="${m}" value="${esc(val(g,'가속도',m))}"></div>`).join('')}</div>`);
+  html += sec('h-tilt', '📐 경사계: 측정한 장소 3곳',
+    [0,1,2].map(n => `<div class="loc"><div><label>장소 ${n+1}</label><input type="text" id="loc${n}" placeholder="예: 교실 창가" value="${esc(tilt[n] ? tilt[n]['구분'] : '')}"></div><div><label>경사각(°)</label><input type="number" step="any" inputmode="decimal" id="ang${n}" value="${esc(tilt[n] ? tilt[n]['값'] : '')}"></div></div>`).join(''),
+    '경사각은 앱에 표시된 각도를 입력하세요.');
+  $('#formBody').innerHTML = html;
+}
+function collect() {
+  const rows = [];
+  document.querySelectorAll('#formBody input[data-item]').forEach(i => { if (i.value !== '') rows.push({item:i.dataset.item, key:i.dataset.key, value:Number(i.value)}); });
+  [0,1,2].forEach(n => { const loc = $('#loc'+n).value.trim(), a = $('#ang'+n).value; if (loc) rows.push({item:'경사', key:loc, value:a === '' ? '' : Number(a)}); });
+  return rows;
+}
+$('#saveBtn').onclick = async () => {
+  const rows = collect();
+  if (!rows.length) { alert('입력된 값이 없습니다.'); return; }
+  const b = $('#saveBtn'), t = b.textContent; b.textContent = '저장 중... ⏳'; b.disabled = true;
+  try { await send({group:curGroup, rows}); alert(`${curGroup}모둠 데이터가 저장되었습니다! 🎉`); }
+  catch (e) { console.error(e); alert('오류가 발생했습니다. 잠시 후 다시 시도해주세요.'); }
+  b.textContent = t; b.disabled = false;
+};
+$('#clearBtn').onclick = async () => {
+  if (!confirm(`${curGroup}모둠의 데이터를 모두 지울까요?`)) return;
+  try { await send({action:'delete', group:curGroup}); buildForm(curGroup); } catch (e) { alert('삭제 중 오류가 발생했습니다.'); }
+};
+
+/* ---------- 전체 탭 ---------- */
+function ensureCharts() {
+  if (charts) return;
+  charts = {};
+  Chart.defaults.font.weight = 'bold'; Chart.defaults.color = '#000';
+  const box = (id, title) => `<div class="chart-box"><h3>${title}</h3><div class="cv"><canvas id="${id}"></canvas></div></div>`;
+  $('#charts').innerHTML = SERIES.map(s => box('c-'+s.k, `${s.icon} ${s.k} (${s.u})`)).join('') + box('c-가속도', '🏃 가속도 크기');
+  const ds = line => GROUPS.map((g, i) => ({label:g+'모둠', data:[], borderColor:'#000', backgroundColor:COLORS[i], borderWidth:line ? 3 : 2, pointBorderColor:'#000', pointRadius:4, spanGaps:true}));
+  const opts = (xt, yt) => ({responsive:true, maintainAspectRatio:false, scales:{x:{title:{display:true,text:xt}}, y:{title:{display:!!yt,text:yt}}}});
+  SERIES.forEach(s => charts[s.k] = new Chart($('#c-'+s.k), {type:'line', data:{labels:TIMES.map(t => t+'초'), datasets:ds(true)}, options:opts('시간', s.u)}));
+  charts['가속도'] = new Chart($('#c-가속도'), {type:'bar', data:{labels:MOVES, datasets:ds(false)}, options:opts('상황', '가속도 크기')});
+}
+function updateDash() {
+  if (!charts) return;
+  SERIES.forEach(s => { GROUPS.forEach((g, i) => charts[s.k].data.datasets[i].data = TIMES.map(t => num(val(g, s.k, t+'초')))); charts[s.k].update('none'); });
+  GROUPS.forEach((g, i) => charts['가속도'].data.datasets[i].data = MOVES.map(m => num(val(g, '가속도', m))));
+  charts['가속도'].update('none');
+
+  const cnt = rawData.filter(r => num(r['값']) !== null).length;
+  const gs = new Set(rawData.map(r => String(r['모둠']))).size;
+  $('#stats').textContent = `📦 우리 반 전체 데이터: 값 ${cnt}개 (${gs}/6모둠 입력)`;
+
+  $('#tilt').innerHTML = GROUPS.map(g => {
+    const t = rowsOf(g, '경사');
+    return `<div class="tilt-item">${g}모둠: ${t.length ? t.map(r => `${esc(r['구분'])} (${r['값'] === '' ? '-' : esc(r['값'])}°)`).join(' / ') : '입력 없음'}</div>`;
+  }).join('');
+
+  const rows = rawData.slice().sort((a, b) => (a['모둠'] - b['모둠']) || (ORDER.indexOf(a['항목']) - ORDER.indexOf(b['항목'])));
+  $('#tbody').innerHTML = rows.length
+    ? rows.map(r => `<tr><td>${esc(r['모둠'])}</td><td>${esc(r['항목'])}</td><td>${esc(r['구분'])}</td><td>${esc(r['값'])}</td></tr>`).join('')
+    : '<tr><td colspan="4">입력된 데이터가 없습니다.</td></tr>';
+}
+$('#csvBtn').onclick = () => {
+  const q = s => '"' + String(s ?? '').replace(/"/g, '""') + '"';
+  const csv = '\uFEFF모둠,항목,구분,값\n' + rawData.map(r => [r['모둠'], r['항목'], r['구분'], r['값']].map(q).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv;charset=utf-8'}));
+  a.download = '측정데이터_전체모둠.csv'; a.click();
+};
+
+/* ---------- 시작 ---------- */
+async function refresh() { await load(); if (view === 'dash') updateDash(); }
+if (!WEB_APP_URL) $('#preview').style.display = 'block';
+buildNav(); show('dash'); refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
